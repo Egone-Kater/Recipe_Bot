@@ -4,19 +4,18 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.utils import executor
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from sqlalchemy import create_engine, Column, Integer, String
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, declarative_base
 
 
 # токен телеграм бота
-token_tg = '6241837582:AAGQJE41JcM7BMRTT_HvzNxbeOtkib2EKHI'
+token_tg = '**************************************'
 
 # создаем экземпляр бота, диспетчера и памяти
 bot = Bot(token_tg)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 
-# создаем движок БД
+# создаем движок БД (базы данных)
 engine = create_engine('sqlite:///recipes_data.db', echo=True)
 
 # создаем таблицу "recipes" с полями "id", "recipe_name", "how_to_cook"
@@ -34,7 +33,8 @@ class Recipe(Base):
 class CommandStates(StatesGroup):
     NAME = State()
     HOW_TO_COOK = State()
-    EDIT = State()
+    EDIT_NAME = State()
+    EDIT_RECIPE = State()
     DELETE = State()
 
 
@@ -130,11 +130,11 @@ async def process_recipe_for_show(message: types.Message):
 async def edit_recipe_command(message: types.Message):
     await message.answer('Введите название рецепта для редактирования.')
     # устанавливаем состояние
-    await CommandStates.EDIT.set()
+    await CommandStates.EDIT_NAME.set()
 
 
 # обработчик сообщений для получения названия рецепта для редактирования
-@dp.message_handler(state=CommandStates.EDIT)
+@dp.message_handler(state=CommandStates.EDIT_NAME)
 async def process_recipe_for_edit(message: types.Message, state: FSMContext):
     recipe_name = message.text
     # получаем рецепт из БД по названию
@@ -143,19 +143,20 @@ async def process_recipe_for_edit(message: types.Message, state: FSMContext):
         await message.answer('Введите новый способ приготовления для рецепта.')
         # устанавливаем состояние редактирования для данного пользователя
         await state.update_data(recipe=recipe)
-        await CommandStates.HOW_TO_COOK.set()
+        await CommandStates.EDIT_RECIPE.set()
     else:
         await message.answer(f'Рецепт "{recipe_name}" не найден.')
         await state.finish()
 
 
 # Обработчик сообщений для получения нового способа приготовления для редактирования
-@dp.message_handler(state=CommandStates.HOW_TO_COOK)
+@dp.message_handler(state=CommandStates.EDIT_RECIPE)
 async def process_new_how_to_cook(message: types.Message, state: FSMContext):
     how_to_cook = message.text
     data = await state.get_data()
-    recipe = data.get('recipes')
+    recipe = data.get('recipe')
     recipe.how_to_cook = how_to_cook
+    session.merge(recipe)
     session.commit()
     await message.answer(f'Способ приготовления "{recipe.recipe_name}" был отредактирован.')
     await state.finish()
