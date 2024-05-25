@@ -17,4 +17,4 @@ The dataframe will criates on you project folder after first launch.
 
 
 Created by:
-- Egone Kater
+ Egone Kater
